@@ -1,6 +1,10 @@
 # Prerequisites
 *.d
 
+#MCUXpresso
+/K32L2B31A_Project_lalb-diplomado-iot/Debug/
+/K32L2B31A_Project_lalb-diplomado-iot/Release/
+
 # Object files
 *.o
 *.ko
