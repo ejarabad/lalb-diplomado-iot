@@ -1,72 +1,107 @@
-/*
- * Copyright 2016-2022 NXP
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without modification,
- * are permitted provided that the following conditions are met:
- *
- * o Redistributions of source code must retain the above copyright notice, this list
- *   of conditions and the following disclaimer.
- *
- * o Redistributions in binary form must reproduce the above copyright notice, this
- *   list of conditions and the following disclaimer in the documentation and/or
- *   other materials provided with the distribution.
- *
- * o Neither the name of NXP Semiconductor, Inc. nor the names of its
- *   contributors may be used to endorse or promote products derived from this
- *   software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
- * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
- * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* @file    K32L2B31A_Project_lalb-diplomado-iot
+ * @author Ernesto Jaraba
+ * @version 0.00
+ * @date 05/10/2022
+ * @brief   Funcion principal main.
+ * @details
+  			v0.00 proyecto base
  */
 
-/**
- * @file    K32L2B31A_Project_lalb-diplomado-iot.c
- * @brief   Application entry point.
- */
 #include <stdio.h>
 #include "board.h"
 #include "peripherals.h"
 #include "pin_mux.h"
 #include "clock_config.h"
+#include "fsl_common.h"
 #include "K32L2B31A.h"
 #include "fsl_debug_console.h"
-/* TODO: insert other include files here. */
+#include "fsl_device_registers.h"
+#include "fsl_adc16.h"
 
-/* TODO: insert other definitions and declarations here. */
+#define BOARD_LED_GPIO_1     BOARD_LED_GREEN_GPIO
+#define BOARD_LED_GPIO_PIN_1 BOARD_LED_GREEN_GPIO_PIN
 
-/*
- * @brief   Application entry point.
- */
+#define BOARD_LED_GPIO_2     BOARD_LED_RED_GPIO
+#define BOARD_LED_GPIO_PIN_2 BOARD_LED_RED_GPIO_PIN
+
+
+volatile uint32_t g_systickCounter;
+
+    volatile static uint8_t i = 0 ;
+    volatile static float voltaje = 12.5;
+
+    void SysTick_Handler(void)
+    {
+        if (g_systickCounter != 0U)
+        {
+            g_systickCounter--;
+        }
+    }
+
+    void SysTick_DelayTicks(uint32_t n)
+    {
+        g_systickCounter = n;
+        while (g_systickCounter != 0U)
+        {
+        }
+    }
+
+
 int main(void) {
 
-    /* Init board hardware. */
+
     BOARD_InitBootPins();
     BOARD_InitBootClocks();
     BOARD_InitBootPeripherals();
 #ifndef BOARD_INIT_DEBUG_CONSOLE_PERIPHERAL
-    /* Init FSL debug console. */
+
     BOARD_InitDebugConsole();
 #endif
 
-    PRINTF("Hello World\r\n");
 
-    /* Force the counter to be placed into memory. */
-    volatile static int i = 0 ;
-    /* Enter an infinite loop, just incrementing a counter. */
-    while(1) {
-        i++ ;
-        /* 'Dummy' NOP to allow source level single stepping of
-            tight while() loop */
-        __asm volatile ("nop");
-    }
+
+
+
+    if (SysTick_Config(SystemCoreClock / 1500U))
+        {
+
+        }
+
+
+    	while(1) {
+
+
+    				SysTick_DelayTicks(500U);
+    		    	GPIO_PortToggle(BOARD_LED_GPIO_1, 1u << BOARD_LED_GPIO_PIN_1);
+    		    	SysTick_DelayTicks(250U);
+    		    	GPIO_PortToggle(BOARD_LED_GPIO_2, 1u << BOARD_LED_GPIO_PIN_2);
+
+    			ADC16_SetChannelConfig(ADC0_PERIPHERAL, ADC0_CH0_CONTROL_GROUP, &ADC0_channelsConfig[0]);
+
+    	        SysTick_DelayTicks(2000U);
+    	        i++ ;
+
+    	        while (0U == (kADC16_ChannelConversionDoneFlag & ADC16_GetChannelStatusFlags(ADC0_PERIPHERAL, ADC0_CH0_CONTROL_GROUP)))
+    	                	            {
+    	                	            }
+
+    	        float Vout = (ADC16_GetChannelConversionValue(ADC0_PERIPHERAL, ADC0_CH0_CONTROL_GROUP) * (3.3 / 4096));
+
+    	        //float RDLR = (10000 * (5-Vout))/Vout;
+    	        float Iout = (Vout / 10000.0);
+
+
+    	        float LUX =  (2 * ( 3.3 -( 3.3 / ADC16_GetChannelConversionValue(ADC0_PERIPHERAL, ADC0_CH0_CONTROL_GROUP) )))*100;
+
+
+            	PRINTF("ADC Value: %d", ADC16_GetChannelConversionValue(ADC0_PERIPHERAL, ADC0_CH0_CONTROL_GROUP));
+               	PRINTF("LUX Value: %f", LUX);
+               	PRINTF("Vout Value: %f", Vout);
+               	PRINTF("Iout Value: %f\r\n", Iout);
+
+    	        __asm volatile ("nop");
+    	    }
+
+
     return 0 ;
 }
