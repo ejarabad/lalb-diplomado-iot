@@ -1,6 +1,6 @@
 /*! @file : lpuart0.h
- * @author  manuel berdugo 
- * @version 1.0.0
+ * @author  ernesto Jaraba
+ * @version V0.03
  * @date    11/11/2022
  * @brief   Driver para 
  * @details
