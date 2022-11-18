@@ -8,22 +8,20 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include "board.h"
 #include "peripherals.h"
 #include "pin_mux.h"
 #include "clock_config.h"
 #include "K32L2B31A.h"
 
-
 /// fls ////////////////////
 #include "fsl_debug_console.h"
 #include "fsl_adc16.h"
 
-
 //// personales ///////////////
 
 #include "lpuart0.h"
-
 
 /* TODO: insert other include files here. */
 
@@ -35,174 +33,155 @@
  *
  *
  */
-
-#define ADC16_BASE          ADC0
-#define ADC16_CHANNEL_GROUP 0U
-#define ADC16_USER_CHANNEL  3U
-
-#define BOARD_LED_GPIO1     BOARD_LED_GREEN_GPIO
-#define BOARD_LED_GPIO_PIN1 BOARD_LED_GREEN_GPIO_PIN
-
-#define BOARD_LED_GPIO2     BOARD_LED_RED_GPIO
-#define BOARD_LED_GPIO_PIN2 BOARD_LED_RED_GPIO_PIN
-
-
 volatile uint32_t g_systickCounter;
+enum {
+	FSM_ESTADO_INICIO = 0,
+	FSM_ESTADO_ESPERA_NUEVO_DATO_LPUART0,
+	FSM_ESTADO_ANALIZA_NUEVO_DATO_LPUART0,
+	FSM_ESTADO_ENVIAR_COMANDO_ATI,
+	FSM_ESTADO_ENVIAR_COMANDO_GMI,
+	FSM_ESTADO_ENVIAR_COMANDO_GMM,
+	FSM_ESTADO_ENVIAR_COMANDO_GMR,
+	FSM_ESTADO_ENVIAR_COMANDO_CGMI,
+	FMS_ESTADO_ESPERA_BOOFER,
+	FSM_ESTADO_ANALIZA_BOFFER,
+	FSM_ESTADO_BORRAR_BOFFER
+};
 
+enum {
+	CMD_AT_ATI_Display_Product_Identification_Information = 0,
+	CMD_AT_AT_GMI_Request_Manufacturer_Identification,
+	CMD_AT_AT_GMM_Request_TA_Model_Identification,
+	CMD_AT_AT_GMR_Request_TA_Revision_Identification_of_Software_Release,
+	CMD_AT_AT_CGMI_Request_Manufacturer_Identification,
+};
 
-///////////////////// funciones ////////////////////////
-///////////////////////////////////////////////////////
+/*******************************************************************************
+ ******************************************************************************/
+uint8_t fst_estado_actual = FSM_ESTADO_INICIO;
 
-void led_encendidos();
+/* Force the counter to be placed into memory. */
 
-void SysTick_Handler(void)
-{
-    if (g_systickCounter != 0U)
-    {
-        g_systickCounter--;
-    }
-}
-
-void SysTick_DelayTicks(uint32_t n)
-{
-    g_systickCounter = n;
-    while (g_systickCounter != 0U)
-    {
-    }
-}
-
-////////////////// definition /////////////////////////////7
-
-typedef struct _iot_nodo_data{
-	uint32_t preamble;
-	uint16_t frame_sync;
-	//------------------------------------
-	uint32_t end_divice_ID;
-	uint8_t payload;
-	uint8_t auth;
-	//------------------------------------
-	uint16_t FCS;
-	//------------------------------------
-} iot_nodo_data_t;
+const char *cmd_at[5] = { "ATI\r\n",      //q
+		"AT+GMI\r\n",   //w
+		"AT+GMM\r\n",   //e
+		"AT+GMR\r\n",   //r
+		"AT+CGMI\r\n",  //t
+		};
 
 /*******************************************************************************
  * Private Source Code
  ******************************************************************************/
-void ec25_print_data_raw(uint8_t *data_ptr, uint32_t data_size) {
-	for (uint32_t i = 0; i < data_size; i++) {
-		PRINTF("%c", *(data_ptr + i));
-	}
-}
-
-void ec25_print_data_ascii_hex(uint8_t *data_ptr, uint32_t data_size) {
-	for (uint32_t i = 0; i < data_size; i++) {
-		PRINTF("0x%02x ", *(data_ptr + i));
-	}
-}
-
 
 int main(void) {
-
-uint8_t	aux_recepcion = "H";
-
-iot_nodo_data_t datos_locales;
-
-datos_locales.preamble=15;
-datos_locales.frame_sync=6;
-datos_locales.end_divice_ID=5;
-datos_locales.payload=9;
-datos_locales.auth=3;
-datos_locales.FCS=7;
-
-
-
-    /* Init board hardware. */
-    BOARD_InitBootPins();
-    BOARD_InitBootClocks();
-    BOARD_InitBootPeripherals();
-    BOARD_InitLEDsPins();
-
-
+	/* Init board hardware. */
+	BOARD_InitBootPins();
+	BOARD_InitBootClocks();
+	BOARD_InitBootPeripherals();
 #ifndef BOARD_INIT_DEBUG_CONSOLE_PERIPHERAL
-    /* Init FSL debug console. */
-    BOARD_InitDebugConsole();
-
-
+	/* Init FSL debug console. */
+	BOARD_InitDebugConsole();
 #endif
 
+	while (1) {
+		switch (fst_estado_actual) {
+		case FSM_ESTADO_INICIO:
+			fst_estado_actual = FSM_ESTADO_ESPERA_NUEVO_DATO_LPUART0;
+			break;
 
+		case FSM_ESTADO_ESPERA_NUEVO_DATO_LPUART0:
+			if (lpuart0_leer_bandera_nuevo_dato() != 0) {
+				lpuart0_escribir_bandera_nuevo_dato(0);
+				fst_estado_actual = FSM_ESTADO_ANALIZA_NUEVO_DATO_LPUART0;
+			}
+			break;
 
-    if (SysTick_Config(SystemCoreClock / 1000U))
-    {
-        while (1)
-        {
-        }
-    }
+		case FSM_ESTADO_ANALIZA_NUEVO_DATO_LPUART0:
+			switch (lpuart0_leer_dato()) {
+			case 'z':
+				fst_estado_actual = FSM_ESTADO_ENVIAR_COMANDO_ATI;
+				break;
+			case 'O':
+				fst_estado_actual = FSM_ESTADO_ENVIAR_COMANDO_GMI;
+				break;
+			case 'y':
+				fst_estado_actual = FSM_ESTADO_ENVIAR_COMANDO_GMM;
+				break;
+			case 'w':
+				fst_estado_actual = FSM_ESTADO_ENVIAR_COMANDO_GMR;
+				break;
+			case 'p':
+				fst_estado_actual = FSM_ESTADO_ENVIAR_COMANDO_CGMI;
+				break;
+			case 'b':
+				lpuart0_borrar_buffer();
+				printf("BUFFER BORRADO");
+				break;
 
-    while(1) {
-    	if(leer_bandera_nuevo_dato()!=0){
-    	escribir_bandera_nuevo_dato(0);
+			default:	//estado ilegal
+				fst_estado_actual = FSM_ESTADO_INICIO;
+				break;
 
-    	if (aux_recepcion == 83){
-    		ec25_print_data_raw((uint8_t *)(&datos_locales),sizeof(datos_locales));
-    	}
+			}
+			break;
+		case FSM_ESTADO_ENVIAR_COMANDO_ATI:
+			lpuart0_borrar_buffer();
+			PRINTF("%s",
+					cmd_at[CMD_AT_ATI_Display_Product_Identification_Information]);
+			fst_estado_actual = FMS_ESTADO_ESPERA_BOOFER;
+			break;
 
+		case FSM_ESTADO_ENVIAR_COMANDO_GMI:
+			lpuart0_borrar_buffer();
+			PRINTF("%s",
+					cmd_at[CMD_AT_AT_GMI_Request_Manufacturer_Identification]);
+			fst_estado_actual = FMS_ESTADO_ESPERA_BOOFER;
+			break;
 
-    	aux_recepcion = leer_dato();
-    	PRINTF("%c\r\n",aux_recepcion);
+		case FSM_ESTADO_ENVIAR_COMANDO_GMM:
+			lpuart0_borrar_buffer();
+			PRINTF("%s", cmd_at[CMD_AT_AT_GMM_Request_TA_Model_Identification]);
+			fst_estado_actual = FMS_ESTADO_ESPERA_BOOFER;
+			break;
 
-    	if (aux_recepcion == 71){
-    	  GPIO_PortClear(BOARD_LED_GPIO1, 1u << BOARD_LED_GPIO_PIN1); //Prender el LED
-    	}
+		case FSM_ESTADO_ENVIAR_COMANDO_GMR:
+			lpuart0_borrar_buffer();
+			PRINTF("%s",
+					cmd_at[CMD_AT_AT_GMR_Request_TA_Revision_Identification_of_Software_Release]);
+			fst_estado_actual = FMS_ESTADO_ESPERA_BOOFER;
+			break;
 
-    	if (aux_recepcion == 103){
-    		  GPIO_PortSet(BOARD_LED_GPIO1, 1u << BOARD_LED_GPIO_PIN1); //Apagar el LED
-    	}
+		case FSM_ESTADO_ENVIAR_COMANDO_CGMI:
+			lpuart0_borrar_buffer();
+			PRINTF("%s",
+					cmd_at[CMD_AT_AT_CGMI_Request_Manufacturer_Identification]);
+			fst_estado_actual = FMS_ESTADO_ESPERA_BOOFER;
+			break;
 
+		case FMS_ESTADO_ESPERA_BOOFER:
+			if (SysTick_Config(SystemCoreClock / 1000U))
+				;
+			{
+				SysTick_DelayTicks(1500U);
+			}
+			fst_estado_actual = FSM_ESTADO_ANALIZA_BOFFER;
+			break;
 
-    	if (aux_recepcion == 82){
-    	  GPIO_PortClear(BOARD_LED_GPIO2, 1u << BOARD_LED_GPIO_PIN2);
-    	}
+		case FSM_ESTADO_ANALIZA_BOFFER:
+			if (lpuart0_leer_bandera_nuevo_dato() != 0) {
+				lpuart0_escribir_bandera_nuevo_dato(1);
+				analizar_buffer_sin_errores();
+				fst_estado_actual = FSM_ESTADO_INICIO;
+			}
 
-    	if (aux_recepcion == 114){
-    	  GPIO_PortSet(BOARD_LED_GPIO2, 1u << BOARD_LED_GPIO_PIN2);
-    	}
+			break;
 
-    	if(aux_recepcion == 76){
-    		ADC16_SetChannelConfig(ADC0_PERIPHERAL, ADC0_CH0_CONTROL_GROUP, &ADC0_channelsConfig[0]);
+		default:	//estado ilegal
+			fst_estado_actual = FSM_ESTADO_INICIO;
+			break;
 
-    		    	while (0U == (kADC16_ChannelConversionDoneFlag & ADC16_GetChannelStatusFlags(ADC0_PERIPHERAL, ADC0_CH0_CONTROL_GROUP)))
-    		    	    	                	            {
-    		    	    	                	            }
-    		    	PRINTF("ADC Value: %d", ADC16_GetChannelConversionValue(ADC0_PERIPHERAL, ADC0_CH0_CONTROL_GROUP));
-    	}
-
-
-
-       }
-
-
-
-        __asm volatile ("nop");
-    }
-
-    while (2) {
-    		if(leer_bandera_nuevo_dato()!=0){
-    			escribir_bandera_nuevo_dato(0);
-    			if (aux_recepcion == 83){
-
-    			ec25_print_data_ascii_hex((uint8_t *)(&datos_locales),sizeof(datos_locales));
-    			}
-    		}
-    		/* 'Dummy' NOP to allow source level single stepping of
-    		 tight while() loop */
-    		__asm volatile ("nop");
-    	}
-    return 0 ;
+		}
+	}
+	return 0;
 }
 
-
-void led_encendidos(){
-
-
-}
