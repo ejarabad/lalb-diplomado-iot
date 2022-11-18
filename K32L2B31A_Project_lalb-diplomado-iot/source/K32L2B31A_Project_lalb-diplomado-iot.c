@@ -1,6 +1,6 @@
 /* @file    K32L2B31A_Project_lalb-diplomado-iot
  * @author Ernesto Jaraba
- * @version 0.00
+ * @version 0.02
  * @date 05/10/2022
  * @brief   Funcion principal main.
  * @details
@@ -78,8 +78,8 @@ typedef struct _iot_nodo_data{
 	uint16_t frame_sync;
 	//------------------------------------
 	uint32_t end_divice_ID;
-	uint16_t payload;
-	uint16_t auth;
+	uint8_t payload;
+	uint8_t auth;
 	//------------------------------------
 	uint16_t FCS;
 	//------------------------------------
@@ -94,19 +94,25 @@ void ec25_print_data_raw(uint8_t *data_ptr, uint32_t data_size) {
 	}
 }
 
+void ec25_print_data_ascii_hex(uint8_t *data_ptr, uint32_t data_size) {
+	for (uint32_t i = 0; i < data_size; i++) {
+		PRINTF("0x%02x ", *(data_ptr + i));
+	}
+}
+
 
 int main(void) {
 
 uint8_t	aux_recepcion = "H";
 
-iot_nodo_data_t nuevo_formato;
+iot_nodo_data_t datos_locales;
 
-nuevo_formato.preamble = 60;
-nuevo_formato.frame_sync = 30;
-nuevo_formato.end_divice_ID = 56;
-nuevo_formato.payload = 89;
-nuevo_formato.auth = 123;
-nuevo_formato.FCS = 83;
+datos_locales.preamble=15;
+datos_locales.frame_sync=6;
+datos_locales.end_divice_ID=5;
+datos_locales.payload=9;
+datos_locales.auth=3;
+datos_locales.FCS=7;
 
 
 
@@ -136,6 +142,11 @@ nuevo_formato.FCS = 83;
     while(1) {
     	if(leer_bandera_nuevo_dato()!=0){
     	escribir_bandera_nuevo_dato(0);
+
+    	if (aux_recepcion == 83){
+    		ec25_print_data_raw((uint8_t *)(&datos_locales),sizeof(datos_locales));
+    	}
+
 
     	aux_recepcion = leer_dato();
     	PRINTF("%c\r\n",aux_recepcion);
@@ -174,6 +185,19 @@ nuevo_formato.FCS = 83;
 
         __asm volatile ("nop");
     }
+
+    while (2) {
+    		if(leer_bandera_nuevo_dato()!=0){
+    			escribir_bandera_nuevo_dato(0);
+    			if (aux_recepcion == 83){
+
+    			ec25_print_data_ascii_hex((uint8_t *)(&datos_locales),sizeof(datos_locales));
+    			}
+    		}
+    		/* 'Dummy' NOP to allow source level single stepping of
+    		 tight while() loop */
+    		__asm volatile ("nop");
+    	}
     return 0 ;
 }
 
