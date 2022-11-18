@@ -1,6 +1,6 @@
 /* @file    K32L2B31A_Project_lalb-diplomado-iot
  * @author Ernesto Jaraba
- * @version 0.00
+ * @version 0.02
  * @date 05/10/2022
  * @brief   Funcion principal main.
  * @details
