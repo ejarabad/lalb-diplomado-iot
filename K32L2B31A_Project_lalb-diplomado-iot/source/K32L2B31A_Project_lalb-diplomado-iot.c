@@ -101,7 +101,7 @@ int main(void) {
 			case 'z':
 				fst_estado_actual = FSM_ESTADO_ENVIAR_COMANDO_ATI;
 				break;
-			case 'O':
+			case 'd':
 				fst_estado_actual = FSM_ESTADO_ENVIAR_COMANDO_GMI;
 				break;
 			case 'y':
